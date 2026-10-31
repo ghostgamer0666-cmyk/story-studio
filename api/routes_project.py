@@ -13,8 +13,8 @@ import config
 from api.schemas import (
     ProjectStatusResponse,
     ConfirmCharacterMappingRequest,
-    StoryChoiceOption,
 )
+from services.audio_analyzer import analyze_project_audios
 
 router = APIRouter(prefix="/api", tags=["projects"])
 
@@ -50,27 +50,53 @@ def validate_audio_file(upload_file: UploadFile) -> str:
         )
     return ext
 
-def run_pipeline_placeholder(project_id: str):
+def run_story_pipeline(project_id: str, force_confirm: bool = False):
     project = load_project_state(project_id)
     if not project:
         return
 
-    steps = [
-        ("analyzing_audio", 20, 1, "Sesler analiz ediliyor ve sahneler hazırlanıyor..."),
-        ("building_characters", 40, 2, "Karakterler ve görsel varlıklar hazırlanıyor..."),
-        ("animating", 65, 3, "2D karakter ve kamera animasyonları oluşturuluyor..."),
-        ("composing_audio", 85, 4, "Ses efektleri (SFX) ve atmosfer müziği ekleniyor..."),
-        ("rendering_video", 95, 5, "1080x1920 MP4 video render ediliyor..."),
-    ]
-
     try:
-        for status_code, prog, idx, label in steps:
+        project["status"] = "analyzing_audio"
+        project["progress"] = 18
+        project["step_index"] = 1
+        project["current_step_label"] = "Anlatıcı ve karakter sesleri analiz ediliyor, zaman damgaları çıkarılıyor..."
+        save_project_state(project_id)
+
+        analysis = analyze_project_audios(project, force_confirm=force_confirm)
+
+        narr_segs = analysis.get("narrator_segments", [])
+        preview_txt = " ".join(s.get("text", "") for s in narr_segs[:3]).strip()
+        project["narrator_transcript_preview"] = preview_txt or "Ses zaman damgaları çıkarıldı."
+        project["characters"] = analysis.get("characters", [])
+        project["duration_sec"] = analysis.get("total_duration_sec", 0.0)
+        project["scene_count"] = len(analysis.get("master_timeline", []))
+
+        ambiguous = analysis.get("ambiguous_matches", [])
+        if ambiguous and not force_confirm:
+            project["ambiguous_matches"] = ambiguous
+            project["status"] = "awaiting_confirmation"
+            project["progress"] = 30
+            project["step_index"] = 1
+            project["current_step_label"] = "Karakter ses eşleştirmesi için onayınız bekleniyor..."
+            save_project_state(project_id)
+            return
+
+        project["ambiguous_matches"] = []
+
+        remaining_steps = [
+            ("building_characters", 45, 2, "Karakterler ve 2D rig parçaları hazırlanıyor..."),
+            ("animating", 68, 3, "30 FPS ağız senkronizasyonu (lip-sync) ve animasyonlar işleniyor..."),
+            ("composing_audio", 85, 4, "Orijinal sesler, SFX ve atmosfer müziği birleştiriliyor..."),
+            ("rendering_video", 96, 5, "1080x1920 MP4 video hazırlanıyor..."),
+        ]
+
+        for status_code, prog, idx, label in remaining_steps:
             project["status"] = status_code
             project["progress"] = prog
             project["step_index"] = idx
             project["current_step_label"] = label
             save_project_state(project_id)
-            time.sleep(1.2)
+            time.sleep(0.8)
 
         project["interactive_choices"] = [
             {
@@ -89,18 +115,16 @@ def run_pipeline_placeholder(project_id: str):
                 "consequence_hint": "Seslerin uzaklaşmasını bekle ve iz sür",
             },
         ]
-        project["scene_count"] = 6
-        project["duration_sec"] = 15.0
         project["status"] = "completed"
         project["progress"] = 100
         project["step_index"] = 5
-        project["current_step_label"] = "Proje iskeleti ve ses yükleme testi tamamlandı!"
+        project["current_step_label"] = "Ses analizi ve zaman çizelgesi başarıyla tamamlandı!"
         save_project_state(project_id)
 
     except Exception as exc:
         project["status"] = "failed"
         project["error_message"] = str(exc)
-        project["current_step_label"] = "İşlem sırasında bir hata oluştu."
+        project["current_step_label"] = f"Hata: {str(exc)}"
         save_project_state(project_id)
 
 @router.get("/health")
@@ -108,7 +132,7 @@ async def health_check():
     return {
         "status": "ok",
         "studio": "Full Auto Story Animation Studio",
-        "stage": 2,
+        "stage": 3,
         "resolution": f"{config.VIDEO_WIDTH}x{config.VIDEO_HEIGHT}",
         "fps": config.VIDEO_FPS,
         "genres": config.STORY_GENRES,
@@ -170,6 +194,7 @@ async def create_project(
                     "role_type": role_type,
                     "original_filename": char_file.filename,
                     "file_path": str(char_path),
+                    "user_confirmed": False,
                 }
             )
 
@@ -184,19 +209,20 @@ async def create_project(
         "status": "queued",
         "progress": 5,
         "step_index": 1,
-        "current_step_label": "Ses dosyaları sunucuya alındı, işlem başlatılıyor...",
+        "current_step_label": "Ses dosyaları sunucuya alındı, analiz başlatılıyor...",
         "error_message": None,
         "ambiguous_matches": [],
         "video_url": None,
         "duration_sec": None,
         "interactive_choices": [],
         "scene_count": 0,
+        "narrator_transcript_preview": None,
         "created_at": time.time(),
     }
 
     PROJECTS_DB[project_id] = project_data
     save_project_state(project_id)
-    background_tasks.add_task(run_pipeline_placeholder, project_id)
+    background_tasks.add_task(run_story_pipeline, project_id, False)
 
     return ProjectStatusResponse(**project_data)
 
@@ -226,13 +252,14 @@ async def confirm_character_mappings(
             char_item["role_type"] = payload.mappings[slot_id].get(
                 "role_type", char_item["role_type"]
             )
+        char_item["user_confirmed"] = True
 
     project["ambiguous_matches"] = []
-    project["status"] = "planning_scenes"
-    project["current_step_label"] = "Karakter eşleştirmesi onaylandı, sahneler oluşturuluyor..."
+    project["status"] = "analyzing_audio"
+    project["current_step_label"] = "Karakter eşleştirmesi onaylandı, zaman çizelgesi güncelleniyor..."
     save_project_state(project_id)
 
-    background_tasks.add_task(run_pipeline_placeholder, project_id)
+    background_tasks.add_task(run_story_pipeline, project_id, True)
     return ProjectStatusResponse(**project)
 
 @router.get("/projects/{project_id}/download")
