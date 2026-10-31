@@ -40,6 +40,7 @@ class ProjectStatusResponse(BaseModel):
     duration_sec: Optional[float] = None
     interactive_choices: List[StoryChoiceOption] = []
     scene_count: int = 0
+    narrator_transcript_preview: Optional[str] = None
 
 class ConfirmCharacterMappingRequest(BaseModel):
     mappings: Dict[str, Dict[str, str]]
