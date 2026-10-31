@@ -33,6 +33,9 @@ const els = {
     progressProjectTitle: document.getElementById("progress-project-title"),
     progressCurrentLabel: document.getElementById("progress-current-label"),
     progressBarFill: document.getElementById("progress-bar-fill"),
+    ambiguityModalCard: document.getElementById("ambiguity-modal-card"),
+    ambiguityItemsList: document.getElementById("ambiguity-items-list"),
+    btnConfirmMappings: document.getElementById("btn-confirm-mappings"),
     resultProjectTitle: document.getElementById("result-project-title"),
     resultMetaInfo: document.getElementById("result-meta-info"),
     resultVideoPlayer: document.getElementById("result-video-player"),
@@ -77,7 +80,7 @@ async function checkServerHealth() {
         if (!res.ok) throw new Error("Sunucu yanıt vermedi");
         const data = await res.json();
         els.serverBadge.className = "status-badge online";
-        els.serverText.textContent = `Sunucu Hazır (${data.resolution})`;
+        els.serverText.textContent = `Sunucu Hazır (Aşama ${data.stage})`;
     } catch (err) {
         els.serverBadge.className = "status-badge offline";
         els.serverText.textContent = "Sunucu Bağlantısı Yok";
@@ -233,6 +236,7 @@ async function startProjectCreation() {
 
     els.btnStartCreate.disabled = true;
     els.btnStartCreate.textContent = "Yükleniyor...";
+    els.ambiguityModalCard.classList.add("hidden");
 
     try {
         const response = await fetch("/api/projects/create", { method: "POST", body: formData });
@@ -254,6 +258,58 @@ async function startProjectCreation() {
     }
 }
 
+function renderAmbiguityModal(ambiguousList) {
+    els.ambiguityItemsList.innerHTML = "";
+    ambiguousList.forEach((item) => {
+        const div = document.createElement("div");
+        div.className = "character-slot-card";
+        div.setAttribute("data-slot-id", item.slot_id);
+        div.innerHTML = `
+            <p class="file-name" style="margin-bottom:4px;">🎵 Dosya: ${item.filename}</p>
+            <p style="font-size:12px; color:#94a3b8; margin-bottom:8px;">Algılanan Konuşma: "${item.detected_transcript}"</p>
+            <div class="char-inputs-grid">
+                <input type="text" class="text-input amb-name" value="${item.suggested_character_name}" placeholder="Karakter Adı" />
+                <select class="select-input amb-role">
+                    <option value="main" ${item.suggested_role_type === "main" ? "selected" : ""}>Ana Karakter</option>
+                    <option value="supporting" ${item.suggested_role_type === "supporting" ? "selected" : ""}>Yan Karakter</option>
+                    <option value="monster" ${item.suggested_role_type === "monster" ? "selected" : ""}>Canavar</option>
+                </select>
+            </div>
+        `;
+        els.ambiguityItemsList.appendChild(div);
+    });
+    els.ambiguityModalCard.classList.remove("hidden");
+}
+
+async function submitConfirmedMappings() {
+    if (!AppState.activeProjectId) return;
+    const mappings = {};
+    els.ambiguityItemsList.querySelectorAll("[data-slot-id]").forEach((card) => {
+        const slotId = card.getAttribute("data-slot-id");
+        const nameVal = card.querySelector(".amb-name").value.trim() || "Karakter";
+        const roleVal = card.querySelector(".amb-role").value;
+        mappings[slotId] = { character_name: nameVal, role_type: roleVal };
+    });
+
+    els.btnConfirmMappings.disabled = true;
+    els.btnConfirmMappings.textContent = "Onaylanıyor...";
+
+    try {
+        const res = await fetch(`/api/projects/${AppState.activeProjectId}/confirm-characters`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mappings }),
+        });
+        if (res.ok) {
+            els.ambiguityModalCard.classList.add("hidden");
+            startPollingStatus(AppState.activeProjectId);
+        }
+    } finally {
+        els.btnConfirmMappings.disabled = false;
+        els.btnConfirmMappings.textContent = "✓ Eşleştirmeyi Onayla ve Devam Et";
+    }
+}
+
 function startPollingStatus(projectId) {
     if (AppState.pollTimer) clearInterval(AppState.pollTimer);
     AppState.pollTimer = setInterval(async () => {
@@ -263,7 +319,10 @@ function startPollingStatus(projectId) {
             const data = await res.json();
             updateProgressUI(data);
 
-            if (data.status === "completed") {
+            if (data.status === "awaiting_confirmation" && data.ambiguous_matches && data.ambiguous_matches.length > 0) {
+                clearInterval(AppState.pollTimer);
+                renderAmbiguityModal(data.ambiguous_matches);
+            } else if (data.status === "completed") {
                 clearInterval(AppState.pollTimer);
                 showResultScreen(data);
             } else if (data.status === "failed") {
@@ -291,7 +350,12 @@ function updateProgressUI(data) {
 
 function showResultScreen(data) {
     els.resultProjectTitle.textContent = data.project_name;
-    els.resultMetaInfo.textContent = `1080x1920 • 9:16 • 30 FPS • ${data.scene_count || 0} Sahne`;
+    const dur = data.duration_sec ? `${data.duration_sec.toFixed(1)} sn` : "";
+    els.resultMetaInfo.textContent = `1080x1920 • 30 FPS • ${data.scene_count || 0} Kesit • ${dur}`;
+
+    if (data.narrator_transcript_preview) {
+        els.placeholderStatusMsg.textContent = `Algılanan Anlatım: "${data.narrator_transcript_preview}" (Süre: ${dur})`;
+    }
 
     if (data.video_url) {
         els.videoPlaceholderNotice.classList.add("hidden");
@@ -305,7 +369,7 @@ function showResultScreen(data) {
         div.className = "choice-card";
         div.innerHTML = `
             <span class="choice-key">${choice.key}</span>
-            <div><strong>${choice.text}</strong><div style="font-size:11px; color:#94a3b8;">${choice.consequence_hint || ""}</div></div>
+            <div><strong>${choice.text}</strong><div style="font-size:11px; color:#94a3b8;">${choice.consequence_headline || choice.consequence_hint || ""}</div></div>
         `;
         els.resultChoicesList.appendChild(div);
     });
@@ -319,6 +383,7 @@ document.addEventListener("DOMContentLoaded", () => {
     initNarratorUpload();
     els.btnAddCharacter.addEventListener("click", addCharacterSlot);
     els.btnStartCreate.addEventListener("click", startProjectCreation);
+    els.btnConfirmMappings.addEventListener("click", submitConfirmedMappings);
     els.btnExportMp4.addEventListener("click", () => {
         if (!AppState.activeProjectId) return;
         window.location.href = `/api/projects/${AppState.activeProjectId}/download`;
