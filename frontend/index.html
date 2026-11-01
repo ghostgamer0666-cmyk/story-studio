@@ -129,10 +129,10 @@
                 </div>
 
                 <ul class="stage-checklist">
-                    <li id="step-item-1" class="stage-item active"><span class="stage-indicator">1</span><div class="stage-text"><strong>Ses Analizi ve Sahne Planı</strong><small>Zaman damgaları ve 30 FPS lip-sync çıkarılıyor</small></div></li>
-                    <li id="step-item-2" class="stage-item"><span class="stage-indicator">2</span><div class="stage-text"><strong>Karakterler Hazırlanıyor</strong><small>2D rig modelleri kuruluyor</small></div></li>
+                    <li id="step-item-1" class="stage-item active"><span class="stage-indicator">1</span><div class="stage-text"><strong>Ses Analizi ve Sahne Planı</strong><small>Mekân, kamera, 2D aksiyon ve SFX çıkarılıyor</small></div></li>
+                    <li id="step-item-2" class="stage-item"><span class="stage-indicator">2</span><div class="stage-text"><strong>Karakterler Hazırlanıyor</strong><small>Tutarlı 2D rig ve 1080x1920 mekânlar çiziliyor</small></div></li>
                     <li id="step-item-3" class="stage-item"><span class="stage-indicator">3</span><div class="stage-text"><strong>Animasyonlar Oluşturuluyor</strong><small>Lip-sync ve hareketler işleniyor</small></div></li>
-                    <li id="step-item-4" class="stage-item"><span class="stage-indicator">4</span><div class="stage-text"><strong>Ses Efektleri Ekleniyor</strong><small>SFX ve müzik birleştiriliyor</small></div></li>
+                    <li id="step-item-4" class="stage-item"><span class="stage-indicator">4</span><div class="stage-text"><strong>Ses Efektleri Ekleniyor</strong><small>Orijinal sesler, SFX ve müzik dengeleniyor</small></div></li>
                     <li id="step-item-5" class="stage-item"><span class="stage-indicator">5</span><div class="stage-text"><strong>Video Render Ediliyor</strong><small>1080x1920 MP4 çıktı hazırlanıyor</small></div></li>
                 </ul>
             </section>
@@ -141,22 +141,40 @@
         <main id="screen-result" class="screen">
             <section class="card">
                 <div class="result-header">
-                    <span class="success-badge">✓ Analiz Tamamlandı</span>
+                    <span class="success-badge">✓ 2D Animasyon ve Master Ses Hazır</span>
                     <h2 id="result-project-title">Hikâye Videosu Hazır</h2>
                     <p id="result-meta-info" class="card-desc">1080x1920 • 9:16 Dikey • 30 FPS MP4</p>
                 </div>
 
                 <div class="video-frame-9x16">
                     <video id="result-video-player" controls playsinline webkit-playsinline preload="metadata" class="video-element hidden"></video>
+                    <img id="result-keyframe-image" alt="Sahne Önizleme" class="video-element hidden" />
                     <div id="video-placeholder-notice" class="video-placeholder">
-                        <div class="placeholder-icon">🎙️</div>
-                        <h3>Aşama 3 Ses Analizi Başarılı!</h3>
-                        <p id="placeholder-status-msg" style="font-size:12px; color:#cbd5e1; margin-top:6px;">Orijinal sesler analiz edildi ve zaman çizelgesi çıkarıldı.</p>
+                        <div class="placeholder-icon">🎬</div>
+                        <h3>Aşama 8 MP4 Video Hazır!</h3>
+                        <p id="placeholder-status-msg" style="font-size:12px; color:#cbd5e1; margin-top:6px;">Tam otomatik 2D animasyon videosu oluşturuldu.</p>
                     </div>
                 </div>
 
+                <div id="master-audio-box" class="file-loaded-card hidden" style="margin-bottom: 16px;">
+                    <div class="file-info-row">
+                        <span class="file-badge">🔊 Master Ses (Orijinal Ses + SFX + Müzik)</span>
+                    </div>
+                    <audio id="result-master-audio" controls preload="metadata" class="audio-player" style="margin-top:6px; margin-bottom:0;"></audio>
+                </div>
+
+                <div class="interactive-choices-box" style="margin-bottom: 16px;">
+                    <h3 style="font-size: 14px; margin-bottom: 8px;">🎭 Tutarlı 2D Karakter Rig Kadrosu</h3>
+                    <div id="result-characters-list" style="display:grid; grid-template-columns: repeat(2, 1fr); gap:10px;"></div>
+                </div>
+
+                <div class="interactive-choices-box" style="margin-bottom: 16px;">
+                    <h3 style="font-size: 14px; margin-bottom: 8px;">📋 Otomatik Üretilen Sahne & Kamera Planı</h3>
+                    <div id="result-scenes-list" class="choices-list"></div>
+                </div>
+
                 <div class="interactive-choices-box">
-                    <h3>🔀 Bölüm Sonu İzleyici Seçenekleri (A/B/C)</h3>
+                    <h3 style="font-size: 14px; margin-bottom: 8px;">🔀 Bölüm Sonu İzleyici Seçenekleri (A/B/C)</h3>
                     <div id="result-choices-list" class="choices-list"></div>
                 </div>
 
@@ -171,3 +189,4 @@
     <script src="/js/app.js"></script>
 </body>
 </html>
+```eof
