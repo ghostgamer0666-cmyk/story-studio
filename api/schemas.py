@@ -26,6 +26,25 @@ class StoryChoiceOption(BaseModel):
     text: str
     consequence_hint: str
 
+class ScenePreviewItem(BaseModel):
+    scene_id: int
+    speaker: str
+    time_range: str
+    location_label: str
+    action: str
+    camera: str
+    sfx: List[str] = []
+    text: str
+    preview_url: Optional[str] = None
+
+class CharacterCardItem(BaseModel):
+    character_id: str
+    name: str
+    role_type: str
+    outfit_color: str
+    accessory: str
+    avatar_url: str
+
 class ProjectStatusResponse(BaseModel):
     project_id: str
     project_name: str
@@ -37,10 +56,15 @@ class ProjectStatusResponse(BaseModel):
     error_message: Optional[str] = None
     ambiguous_matches: List[AmbiguousMatchItem] = []
     video_url: Optional[str] = None
+    master_audio_url: Optional[str] = None
+    first_scene_preview_url: Optional[str] = None
     duration_sec: Optional[float] = None
     interactive_choices: List[StoryChoiceOption] = []
     scene_count: int = 0
     narrator_transcript_preview: Optional[str] = None
+    scenes_preview: List[ScenePreviewItem] = []
+    character_cards: List[CharacterCardItem] = []
 
 class ConfirmCharacterMappingRequest(BaseModel):
     mappings: Dict[str, Dict[str, str]]
+```eof
