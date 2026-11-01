@@ -29,3 +29,4 @@ STORY_GENRES = [
     {"id": "scifi", "name": "Bilim Kurgu", "theme_color": "#06b6d4"},
     {"id": "adventure", "name": "Macera & Aksiyon", "theme_color": "#eab308"},
 ]
+```eof
