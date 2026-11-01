@@ -39,8 +39,13 @@ const els = {
     resultProjectTitle: document.getElementById("result-project-title"),
     resultMetaInfo: document.getElementById("result-meta-info"),
     resultVideoPlayer: document.getElementById("result-video-player"),
+    resultKeyframeImage: document.getElementById("result-keyframe-image"),
     videoPlaceholderNotice: document.getElementById("video-placeholder-notice"),
     placeholderStatusMsg: document.getElementById("placeholder-status-msg"),
+    masterAudioBox: document.getElementById("master-audio-box"),
+    resultMasterAudio: document.getElementById("result-master-audio"),
+    resultCharactersList: document.getElementById("result-characters-list"),
+    resultScenesList: document.getElementById("result-scenes-list"),
     resultChoicesList: document.getElementById("result-choices-list"),
     btnExportMp4: document.getElementById("btn-export-mp4"),
     btnNewProject: document.getElementById("btn-new-project"),
@@ -351,16 +356,62 @@ function updateProgressUI(data) {
 function showResultScreen(data) {
     els.resultProjectTitle.textContent = data.project_name;
     const dur = data.duration_sec ? `${data.duration_sec.toFixed(1)} sn` : "";
-    els.resultMetaInfo.textContent = `1080x1920 • 30 FPS • ${data.scene_count || 0} Kesit • ${dur}`;
-
-    if (data.narrator_transcript_preview) {
-        els.placeholderStatusMsg.textContent = `Algılanan Anlatım: "${data.narrator_transcript_preview}" (Süre: ${dur})`;
-    }
+    els.resultMetaInfo.textContent = `1080x1920 • 30 FPS • ${data.scene_count || 0} Sahne • ${dur}`;
 
     if (data.video_url) {
         els.videoPlaceholderNotice.classList.add("hidden");
+        if (els.resultKeyframeImage) els.resultKeyframeImage.classList.add("hidden");
         els.resultVideoPlayer.classList.remove("hidden");
         els.resultVideoPlayer.src = data.video_url;
+    } else if (data.first_scene_preview_url && els.resultKeyframeImage) {
+        els.videoPlaceholderNotice.classList.add("hidden");
+        els.resultVideoPlayer.classList.add("hidden");
+        els.resultKeyframeImage.src = data.first_scene_preview_url;
+        els.resultKeyframeImage.classList.remove("hidden");
+    }
+
+    if (data.master_audio_url && els.masterAudioBox && els.resultMasterAudio) {
+        els.resultMasterAudio.src = data.master_audio_url;
+        els.masterAudioBox.classList.remove("hidden");
+    }
+
+    if (els.resultCharactersList) {
+        els.resultCharactersList.innerHTML = "";
+        (data.character_cards || []).forEach((ch) => {
+            const card = document.createElement("div");
+            card.style.cssText = "background:#090d16; border:1px solid #263454; border-radius:12px; padding:8px; text-align:center;";
+            card.innerHTML = `
+                <img src="${ch.avatar_url}" alt="${ch.name}" style="width:100%; height:140px; object-fit:contain; border-radius:8px; background:#131b2e; margin-bottom:6px;" />
+                <div style="font-size:13px; font-weight:700; color:#f8fafc;">${ch.name}</div>
+                <div style="font-size:11px; color:#94a3b8;">Rol: ${ch.role_type} • ${ch.accessory}</div>
+            `;
+            els.resultCharactersList.appendChild(card);
+        });
+    }
+
+    if (els.resultScenesList) {
+        els.resultScenesList.innerHTML = "";
+        (data.scenes_preview || []).forEach((sc) => {
+            const div = document.createElement("div");
+            div.className = "choice-card";
+            const sfxText = (sc.sfx && sc.sfx.length > 0) ? sc.sfx.join(", ") : "Atmosfer";
+            const thumbHtml = sc.preview_url
+                ? `<img src="${sc.preview_url}" alt="Sahne ${sc.scene_id}" style="width:48px; height:84px; object-fit:cover; border-radius:6px; border:1px solid #263454; flex-shrink:0;" />`
+                : `<span class="choice-key">#${sc.scene_id}</span>`;
+
+            div.innerHTML = `
+                ${thumbHtml}
+                <div style="flex:1;">
+                    <div style="display:flex; justify-content:space-between; font-size:12px; color:#a5b4fc;">
+                        <strong>#${sc.scene_id} 📍 ${sc.location_label} (${sc.speaker})</strong>
+                        <span>${sc.time_range}</span>
+                    </div>
+                    <div style="font-size:12px; margin:3px 0; color:#f8fafc;">"${sc.text}"</div>
+                    <div style="font-size:11px; color:#94a3b8;">🏃 Aksiyon: <b>${sc.action}</b> • 🎥 Kamera: <b>${sc.camera}</b> • 🔊 SFX: <b>${sfxText}</b></div>
+                </div>
+            `;
+            els.resultScenesList.appendChild(div);
+        });
     }
 
     els.resultChoicesList.innerHTML = "";
@@ -369,7 +420,7 @@ function showResultScreen(data) {
         div.className = "choice-card";
         div.innerHTML = `
             <span class="choice-key">${choice.key}</span>
-            <div><strong>${choice.text}</strong><div style="font-size:11px; color:#94a3b8;">${choice.consequence_headline || choice.consequence_hint || ""}</div></div>
+            <div><strong>${choice.text}</strong><div style="font-size:11px; color:#94a3b8;">${choice.consequence_hint || ""}</div></div>
         `;
         els.resultChoicesList.appendChild(div);
     });
@@ -390,3 +441,4 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     els.btnNewProject.addEventListener("click", () => switchScreen("create"));
 });
+```eof
