@@ -15,10 +15,16 @@ from api.schemas import (
     ConfirmCharacterMappingRequest,
 )
 from services.audio_analyzer import analyze_project_audios
+from services.story_planner import generate_story_plan
+from services.character_system import prepare_visual_assets
+from services.animation_engine import prepare_animation_timeline
+from services.sfx_composer import compose_project_master_audio
+from services.video_renderer import render_project_mp4
 
 router = APIRouter(prefix="/api", tags=["projects"])
 
 PROJECTS_DB: dict = {}
+
 
 def save_project_state(project_id: str):
     if project_id not in PROJECTS_DB:
@@ -26,6 +32,7 @@ def save_project_state(project_id: str):
     state_file = config.CACHE_DIR / f"{project_id}_state.json"
     with open(state_file, "w", encoding="utf-8") as f:
         json.dump(PROJECTS_DB[project_id], f, ensure_ascii=False, indent=2)
+
 
 def load_project_state(project_id: str) -> Optional[dict]:
     if project_id in PROJECTS_DB:
@@ -37,6 +44,7 @@ def load_project_state(project_id: str) -> Optional[dict]:
             PROJECTS_DB[project_id] = data
             return data
     return None
+
 
 def validate_audio_file(upload_file: UploadFile) -> str:
     if not upload_file.filename:
@@ -50,6 +58,7 @@ def validate_audio_file(upload_file: UploadFile) -> str:
         )
     return ext
 
+
 def run_story_pipeline(project_id: str, force_confirm: bool = False):
     project = load_project_state(project_id)
     if not project:
@@ -57,7 +66,7 @@ def run_story_pipeline(project_id: str, force_confirm: bool = False):
 
     try:
         project["status"] = "analyzing_audio"
-        project["progress"] = 18
+        project["progress"] = 15
         project["step_index"] = 1
         project["current_step_label"] = "Anlatıcı ve karakter sesleri analiz ediliyor, zaman damgaları çıkarılıyor..."
         save_project_state(project_id)
@@ -69,13 +78,12 @@ def run_story_pipeline(project_id: str, force_confirm: bool = False):
         project["narrator_transcript_preview"] = preview_txt or "Ses zaman damgaları çıkarıldı."
         project["characters"] = analysis.get("characters", [])
         project["duration_sec"] = analysis.get("total_duration_sec", 0.0)
-        project["scene_count"] = len(analysis.get("master_timeline", []))
 
         ambiguous = analysis.get("ambiguous_matches", [])
         if ambiguous and not force_confirm:
             project["ambiguous_matches"] = ambiguous
             project["status"] = "awaiting_confirmation"
-            project["progress"] = 30
+            project["progress"] = 25
             project["step_index"] = 1
             project["current_step_label"] = "Karakter ses eşleştirmesi için onayınız bekleniyor..."
             save_project_state(project_id)
@@ -83,42 +91,64 @@ def run_story_pipeline(project_id: str, force_confirm: bool = False):
 
         project["ambiguous_matches"] = []
 
-        remaining_steps = [
-            ("building_characters", 45, 2, "Karakterler ve 2D rig parçaları hazırlanıyor..."),
-            ("animating", 68, 3, "30 FPS ağız senkronizasyonu (lip-sync) ve animasyonlar işleniyor..."),
-            ("composing_audio", 85, 4, "Orijinal sesler, SFX ve atmosfer müziği birleştiriliyor..."),
-            ("rendering_video", 96, 5, "1080x1920 MP4 video hazırlanıyor..."),
-        ]
+        # AŞAMA 4: Hikâye ve Sahne Planlama
+        project["status"] = "planning_story"
+        project["progress"] = 35
+        project["step_index"] = 1
+        project["current_step_label"] = "Hikâye analiz ediliyor: Mekânlar, kamera açıları ve SFX planlanıyor..."
+        save_project_state(project_id)
 
-        for status_code, prog, idx, label in remaining_steps:
-            project["status"] = status_code
-            project["progress"] = prog
-            project["step_index"] = idx
-            project["current_step_label"] = label
-            save_project_state(project_id)
-            time.sleep(0.8)
+        story_plan = generate_story_plan(project, analysis)
 
-        project["interactive_choices"] = [
-            {
-                "key": "A",
-                "text": "Karanlık koridordaki demir kapıyı aç",
-                "consequence_hint": "İçerideki gizemi çöz ama tehlikeyle yüzleş",
-            },
-            {
-                "key": "B",
-                "text": "Yangın merdiveninden çatıya doğru koş",
-                "consequence_hint": "Açık alana çık ve telsiz sinyali ara",
-            },
-            {
-                "key": "C",
-                "text": "Havalandırma boşluğuna saklanıp bekle",
-                "consequence_hint": "Seslerin uzaklaşmasını bekle ve iz sür",
-            },
-        ]
+        # AŞAMA 5: Karakter Tutarlılığı, 2D Rig ve Arka Plan Üretimi
+        project["status"] = "building_characters"
+        project["progress"] = 55
+        project["step_index"] = 2
+        project["current_step_label"] = "Tutarlı 2D karakter rigleri ve 1080x1920 sahne arka planları çiziliyor..."
+        save_project_state(project_id)
+
+        story_plan = prepare_visual_assets(project, story_plan)
+
+        # AŞAMA 6: 2D Animasyon Motoru
+        project["status"] = "animating"
+        project["progress"] = 75
+        project["step_index"] = 3
+        project["current_step_label"] = "30 FPS 2D eklem animasyonu, lip-sync, kamera hareketleri ve HUD işleniyor..."
+        save_project_state(project_id)
+
+        story_plan = prepare_animation_timeline(project, story_plan)
+
+        # AŞAMA 7: Otomatik Ses Sistemi
+        project["status"] = "composing_audio"
+        project["progress"] = 88
+        project["step_index"] = 4
+        project["current_step_label"] = "Orijinal sesler korunarak SFX ve atmosfer müziği miksleniyor (Audio Ducking)..."
+        save_project_state(project_id)
+
+        story_plan = compose_project_master_audio(project, analysis, story_plan)
+
+        # AŞAMA 8: Video Render Sistemi (FFmpeg MP4)
+        project["status"] = "rendering_video"
+        project["progress"] = 94
+        project["step_index"] = 5
+        project["current_step_label"] = "1080x1920 30 FPS H.264 MP4 video render ediliyor..."
+        save_project_state(project_id)
+
+        video_url = render_project_mp4(project, story_plan)
+
+        project["scene_count"] = len(story_plan.get("scenes", []))
+        project["scenes_preview"] = story_plan.get("scenes_preview", [])
+        project["character_cards"] = story_plan.get("character_cards", [])
+        project["first_scene_preview_url"] = story_plan.get("first_scene_preview_url")
+        project["master_audio_url"] = story_plan.get("master_audio_url")
+        project["video_url"] = video_url
+        project["interactive_choices"] = story_plan.get("interactive_choices", [])
+        project["duration_sec"] = story_plan.get("total_video_duration_sec", project["duration_sec"])
+
         project["status"] = "completed"
         project["progress"] = 100
         project["step_index"] = 5
-        project["current_step_label"] = "Ses analizi ve zaman çizelgesi başarıyla tamamlandı!"
+        project["current_step_label"] = "Tam Otomatik 2D Animasyon Videosu Hazır!"
         save_project_state(project_id)
 
     except Exception as exc:
@@ -127,16 +157,18 @@ def run_story_pipeline(project_id: str, force_confirm: bool = False):
         project["current_step_label"] = f"Hata: {str(exc)}"
         save_project_state(project_id)
 
+
 @router.get("/health")
 async def health_check():
     return {
         "status": "ok",
         "studio": "Full Auto Story Animation Studio",
-        "stage": 3,
+        "stage": 8,
         "resolution": f"{config.VIDEO_WIDTH}x{config.VIDEO_HEIGHT}",
         "fps": config.VIDEO_FPS,
         "genres": config.STORY_GENRES,
     }
+
 
 @router.post("/projects/create", response_model=ProjectStatusResponse)
 async def create_project(
@@ -213,10 +245,14 @@ async def create_project(
         "error_message": None,
         "ambiguous_matches": [],
         "video_url": None,
+        "master_audio_url": None,
+        "first_scene_preview_url": None,
         "duration_sec": None,
         "interactive_choices": [],
         "scene_count": 0,
         "narrator_transcript_preview": None,
+        "scenes_preview": [],
+        "character_cards": [],
         "created_at": time.time(),
     }
 
@@ -226,12 +262,14 @@ async def create_project(
 
     return ProjectStatusResponse(**project_data)
 
+
 @router.get("/projects/{project_id}/status", response_model=ProjectStatusResponse)
 async def get_project_status(project_id: str):
     project = load_project_state(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Proje bulunamadı.")
     return ProjectStatusResponse(**project)
+
 
 @router.post("/projects/{project_id}/confirm-characters", response_model=ProjectStatusResponse)
 async def confirm_character_mappings(
@@ -256,11 +294,12 @@ async def confirm_character_mappings(
 
     project["ambiguous_matches"] = []
     project["status"] = "analyzing_audio"
-    project["current_step_label"] = "Karakter eşleştirmesi onaylandı, zaman çizelgesi güncelleniyor..."
+    project["current_step_label"] = "Karakter eşleştirmesi onaylandı, animasyon ve video üretiliyor..."
     save_project_state(project_id)
 
     background_tasks.add_task(run_story_pipeline, project_id, True)
     return ProjectStatusResponse(**project)
+
 
 @router.get("/projects/{project_id}/download")
 async def download_project_video(project_id: str):
@@ -283,3 +322,4 @@ async def download_project_video(project_id: str):
         media_type="video/mp4",
         filename=f"{safe_title}_{project_id}.mp4",
     )
+```eof
