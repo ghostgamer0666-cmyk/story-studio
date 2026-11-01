@@ -1,9 +1,9 @@
-fastapi==0.115.0
-uvicorn[standard]==0.30.6
-python-multipart==0.0.12
-pydantic==2.9.2
-numpy==1.26.4
-scipy==1.14.1
-Pillow==10.4.0
-pydub==0.25.1
+fastapi0.115.0
+uvicorn[standard]0.30.6
+python-multipart0.0.12
+pydantic2.9.2
+numpy1.26.4
+scipy1.14.1
+Pillow10.4.0
+pydub0.25.1
 faster-whisper==1.0.3
